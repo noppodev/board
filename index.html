@@ -46,51 +46,63 @@
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
-                // 設定が注入されるのをより粘り強く待つ
+                // ブラウザ全体のメモリ(window)から設定データをより確実に取得する
                 const waitForConfig = () => {
                     return new Promise((resolve) => {
-                        const check = () => {
-                            const config = window.__firebase_config;
-                            if (typeof config !== 'undefined' && config) {
-                                resolve(config);
-                                return true;
-                            }
-                            return false;
+                        const getConfig = () => {
+                            // window.__firebase_config を優先的に確認
+                            const config = window.__firebase_config || (typeof __firebase_config !== 'undefined' ? __firebase_config : null);
+                            return config;
                         };
 
-                        if (check()) return;
+                        const existing = getConfig();
+                        if (existing) {
+                            resolve(existing);
+                            return;
+                        }
 
                         const interval = setInterval(() => {
-                            if (check()) clearInterval(interval);
-                        }, 50);
+                            const current = getConfig();
+                            if (current) {
+                                clearInterval(interval);
+                                resolve(current);
+                            }
+                        }, 100);
 
-                        // 10秒待っても来ない場合はエラー
+                        // 15秒まで待機時間を延長
                         setTimeout(() => {
                             clearInterval(interval);
-                            if (!check()) resolve(null);
-                        }, 10000);
+                            const final = getConfig();
+                            resolve(final);
+                        }, 15000);
                     });
                 };
 
                 const initFirebase = async () => {
                     loadingMessage.value = "ネットワーク設定を読み込み中...";
                     try {
-                        const configStr = await waitForConfig();
+                        const configData = await waitForConfig();
                         
-                        if (!configStr) {
-                            console.error("Firebase config is missing.");
-                            loadingMessage.value = "設定データの取得に時間がかかりすぎています。ページを再読み込み（F5）してください。";
+                        if (!configData) {
+                            console.error("Firebase config is missing from environment.");
+                            loadingMessage.value = "設定データの取得に失敗しました。ページを再読み込みしてください。";
                             return;
                         }
 
-                        const firebaseConfig = JSON.parse(configStr);
+                        // 文字列ならパースし、オブジェクトならそのまま使う
+                        const firebaseConfig = typeof configData === 'string' ? JSON.parse(configData) : configData;
+                        
                         const app = initializeApp(firebaseConfig);
                         auth = getAuth(app);
                         db = getFirestore(app);
 
                         loadingMessage.value = "ログイン処理中...";
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
+                        
+                        // カスタムトークンまたは匿名ログイン
+                        const customToken = window.__initial_auth_token || (typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null);
+                        
+                        if (customToken) {
+                            await signInWithCustomToken(auth, customToken).catch(() => signInAnonymously(auth));
                         } else {
                             await signInAnonymously(auth);
                         }
@@ -98,11 +110,13 @@
                         onAuthStateChanged(auth, (firebaseUser) => {
                             if (firebaseUser) {
                                 handleNoppoAuth();
+                            } else {
+                                loading.value = false;
                             }
                         });
                     } catch (e) {
                         console.error("Initialization Error:", e);
-                        loadingMessage.value = "予期せぬエラーが発生しました。";
+                        loadingMessage.value = "システムの初期化中にエラーが発生しました。";
                     }
                 };
 
@@ -229,7 +243,9 @@
                     } catch (e) { console.error(e); }
                 };
 
-                onMounted(initFirebase);
+                onMounted(() => {
+                    initFirebase();
+                });
 
                 return {
                     user, loading, loadingMessage, view, currentTab, boards, currentBoard, posts, newPostText, modal,
