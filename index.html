@@ -6,8 +6,9 @@
     <title>NoppoBoard | チームで繋がる掲示板</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- Firebase SDK (Firestoreのデータベース機能のみを利用) -->
+    <!-- Firebase SDK (Compat版を使用) -->
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
@@ -213,14 +214,12 @@
                 const modal = ref({ show: false, type: 'join', code: '', name: '', description: '' });
 
                 let db;
-                // NoppoBoard固有のデータ識別ID
                 const appId = "noppo-board-v1"; 
-                // Noppo Authの設定
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
                 const startApp = async () => {
-                    // Firebase AuthのAPIキーは不要。Firestore(DB)としてのみ初期化。
+                    // Firebaseの初期化 (Auth機能も含める)
                     const config = {
                         projectId: "noppo-studio"
                     };
@@ -240,23 +239,22 @@
                     
                     try {
                         const url = ticket ? `${AUTH_WORKER_URL}/auth/v1/user?ticket=${ticket}` : `${AUTH_WORKER_URL}/auth/v1/user`;
-                        // 修正：credentialsを削除してCORSエラーを回避
                         const res = await fetch(url, { headers: { "apikey": SUPABASE_KEY } });
 
                         if (res.ok) {
                             const data = await res.json();
-                            // Noppo Authのユーザー情報を保持
                             user.value = {
                                 userId: data.user_metadata.display_name,
                                 avatar: data.user_metadata.avatar_url
                             };
                             
-                            // チケットをURLから隠す
+                            // 重要: Noppo Authで身元が判明したら、Firebase側でも匿名ログインして「通信許可」を得る
+                            await firebase.auth().signInAnonymously().catch(e => console.error("Firebase Auth Error:", e));
+
                             if (ticket) {
                                 const cleanUrl = window.location.origin + window.location.pathname;
                                 window.history.replaceState({}, document.title, cleanUrl);
                             }
-                            // ボードの読み込み開始
                             loadBoards();
                         } else {
                             loading.value = false;
@@ -267,13 +265,21 @@
                     }
                 };
 
+                // 公開データパスの定義
+                const getPublicPath = (collectionName) => {
+                    return db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
+                };
+
                 const loadBoards = () => {
                     if (!user.value || !db) return;
-                    const boardsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards');
                     
-                    boardsRef.onSnapshot(snapshot => {
+                    // ボード一覧を購読
+                    getPublicPath('boards').onSnapshot(snapshot => {
                         const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        boards.value = all.filter(b => (b.members || []).includes(user.value.userId) || b.owner === user.value.userId);
+                        // 自分がメンバーかオーナーのボードのみ表示
+                        boards.value = all.filter(b => 
+                            (b.members || []).includes(user.value.userId) || b.owner === user.value.userId
+                        );
                         loading.value = false;
                     }, err => {
                         console.error("Firestore Read Error:", err);
@@ -282,12 +288,12 @@
                 };
 
                 const createBoard = async () => {
-                    if (!modal.value.name) return;
+                    if (!modal.value.name || !user.value) return;
                     const colors = ['bg-slate-800', 'bg-indigo-700', 'bg-blue-600', 'bg-emerald-600', 'bg-rose-600', 'bg-purple-600'];
                     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
                     
                     try {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').add({
+                        await getPublicPath('boards').add({
                             name: modal.value.name,
                             description: modal.value.description || "",
                             code: code,
@@ -304,16 +310,18 @@
 
                 const joinBoard = async () => {
                     const code = modal.value.code.toUpperCase().trim();
-                    const boardsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards');
+                    if (!code || !user.value) return;
                     
                     try {
-                        const snapshot = await boardsRef.get();
-                        const boardDoc = snapshot.docs.find(d => d.data().code === code);
-                        if (boardDoc) {
+                        const snapshot = await getPublicPath('boards').where("code", "==", code).get();
+                        if (!snapshot.empty) {
+                            const boardDoc = snapshot.docs[0];
                             await boardDoc.ref.update({ 
                                 members: firebase.firestore.FieldValue.arrayUnion(user.value.userId) 
                             });
                             enterBoard({ id: boardDoc.id, ...boardDoc.data() });
+                        } else {
+                            alert("ボードが見つかりません。コードを確認してください。");
                         }
                     } catch (e) {
                         console.error("Join Board Error:", e);
@@ -326,17 +334,17 @@
                     view.value = 'board';
                     if (postUnsub) postUnsub();
                     
-                    const postsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(b.id).collection('posts');
-                    postUnsub = postsRef.onSnapshot(snapshot => {
+                    // 投稿の購読
+                    postUnsub = getPublicPath('boards').doc(b.id).collection('posts').onSnapshot(snapshot => {
                         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         posts.value = list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                     });
                 };
 
                 const addPost = async () => {
-                    if (!newPostText.value.trim()) return;
+                    if (!newPostText.value.trim() || !currentBoard.value) return;
                     try {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(currentBoard.value.id).collection('posts').add({
+                        await getPublicPath('boards').doc(currentBoard.value.id).collection('posts').add({
                             author: user.value.userId,
                             avatar: user.value.avatar,
                             content: newPostText.value,
@@ -350,7 +358,7 @@
 
                 const deletePost = async (id) => {
                     try {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(currentBoard.value.id).collection('posts').doc(id).delete();
+                        await getPublicPath('boards').doc(currentBoard.value.id).collection('posts').doc(id).delete();
                     } catch (e) {
                         console.error("Delete Post Error:", e);
                     }
@@ -368,10 +376,8 @@
                     handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); modal.value.show = false; },
                     formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '送信中...',
                     copyCode: () => { 
-                        const el = document.createElement('textarea');
-                        el.value = currentBoard.value.code;
-                        document.body.appendChild(el); el.select();
-                        document.execCommand('copy'); document.body.removeChild(el);
+                        navigator.clipboard.writeText(currentBoard.value.code);
+                        // フィードバックが必要ならここに記述
                     }
                 };
             }
