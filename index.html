@@ -219,7 +219,7 @@
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
                 const startApp = async () => {
-                    // Firebaseの初期化 (Auth機能も含める)
+                    // Firebaseの初期化
                     const config = {
                         projectId: "noppo-studio"
                     };
@@ -239,6 +239,7 @@
                     
                     try {
                         const url = ticket ? `${AUTH_WORKER_URL}/auth/v1/user?ticket=${ticket}` : `${AUTH_WORKER_URL}/auth/v1/user`;
+                        // credentialsを除去し、apikeyをセット
                         const res = await fetch(url, { headers: { "apikey": SUPABASE_KEY } });
 
                         if (res.ok) {
@@ -248,8 +249,9 @@
                                 avatar: data.user_metadata.avatar_url
                             };
                             
-                            // 重要: Noppo Authで身元が判明したら、Firebase側でも匿名ログインして「通信許可」を得る
-                            await firebase.auth().signInAnonymously().catch(e => console.error("Firebase Auth Error:", e));
+                            // 重要: 匿名ログインを「待機」してから次へ進む
+                            loadingMessage.value = "認証を確立中...";
+                            await firebase.auth().signInAnonymously();
 
                             if (ticket) {
                                 const cleanUrl = window.location.origin + window.location.pathname;
@@ -273,7 +275,7 @@
                 const loadBoards = () => {
                     if (!user.value || !db) return;
                     
-                    // ボード一覧を購読
+                    // ボード一覧をリアルタイム購読
                     getPublicPath('boards').onSnapshot(snapshot => {
                         const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         // 自分がメンバーかオーナーのボードのみ表示
@@ -303,8 +305,10 @@
                             members: [user.value.userId],
                             createdAt: firebase.firestore.FieldValue.serverTimestamp()
                         });
+                        modal.value.show = false;
                     } catch (e) {
                         console.error("Board Creation Error:", e);
+                        alert("ボードの作成に失敗しました。権限がない可能性があります。");
                     }
                 };
 
@@ -320,11 +324,13 @@
                                 members: firebase.firestore.FieldValue.arrayUnion(user.value.userId) 
                             });
                             enterBoard({ id: boardDoc.id, ...boardDoc.data() });
+                            modal.value.show = false;
                         } else {
                             alert("ボードが見つかりません。コードを確認してください。");
                         }
                     } catch (e) {
                         console.error("Join Board Error:", e);
+                        alert("参加に失敗しました。");
                     }
                 };
 
@@ -334,7 +340,7 @@
                     view.value = 'board';
                     if (postUnsub) postUnsub();
                     
-                    // 投稿の購読
+                    // 投稿をリアルタイム購読
                     postUnsub = getPublicPath('boards').doc(b.id).collection('posts').onSnapshot(snapshot => {
                         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         posts.value = list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -373,11 +379,16 @@
                     logout: () => { window.location.href = `${AUTH_WORKER_URL}/logout?redirect=${encodeURIComponent(window.location.href)}`; },
                     enterBoard, addPost, deletePost,
                     openModal: (t) => modal.value = { show: true, type: t, code: '', name: '', description: '' },
-                    handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); modal.value.show = false; },
+                    handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); },
                     formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '送信中...',
                     copyCode: () => { 
-                        navigator.clipboard.writeText(currentBoard.value.code);
-                        // フィードバックが必要ならここに記述
+                        const text = currentBoard.value.code;
+                        const el = document.createElement('textarea');
+                        el.value = text;
+                        document.body.appendChild(el);
+                        el.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(el);
                     }
                 };
             }
