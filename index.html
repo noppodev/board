@@ -28,19 +28,6 @@
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
         import { createApp, ref, onMounted } from "https://unpkg.com/vue@3/dist/vue.esm-browser.prod.js";
 
-        // Firebase設定を安全に取得するための関数
-        const getFirebaseConfig = () => {
-            try {
-                // 1. windowオブジェクト経由でチェック
-                if (window.__firebase_config) return window.__firebase_config;
-                // 2. グローバル変数として存在するかチェック
-                if (typeof __firebase_config !== 'undefined') return __firebase_config;
-            } catch (e) {
-                console.warn("Config check error:", e);
-            }
-            return null;
-        };
-
         createApp({
             setup() {
                 const user = ref(null);
@@ -59,33 +46,47 @@
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
-                const initFirebase = async () => {
-                    loadingMessage.value = "ネットワーク設定を読み込み中...";
-                    
-                    let configData = null;
-                    // 最大20秒間、設定が届くのを待機する
-                    for (let i = 0; i < 40; i++) {
-                        configData = getFirebaseConfig();
-                        if (configData) break;
+                // Firebase設定を徹底的に待機して取得する関数
+                const fetchConfigWithRetry = async (maxRetries = 60) => {
+                    for (let i = 0; i < maxRetries; i++) {
+                        // 1. window直下を確認
+                        if (window.__firebase_config) return window.__firebase_config;
+                        // 2. グローバル変数を確認
+                        try {
+                            if (typeof __firebase_config !== 'undefined') return __firebase_config;
+                        } catch(e) {}
+                        
+                        // 0.5秒待って再試行
+                        loadingMessage.value = `ネットワーク設定を待機中... (${i + 1})`;
                         await new Promise(r => setTimeout(r, 500));
                     }
-                    
-                    if (!configData) {
-                        console.error("Firebase config is missing from environment.");
-                        loadingMessage.value = "設定データの取得に失敗しました。このページを一度閉じ、再度プレビューを開き直してください。";
-                        return;
-                    }
+                    return null;
+                };
 
+                const initFirebase = async () => {
                     try {
+                        const configData = await fetchConfigWithRetry();
+                        
+                        if (!configData) {
+                            console.error("Firebase config is missing from environment.");
+                            loadingMessage.value = "設定データの取得に失敗しました。プレビューをリロードしてみてください。";
+                            return;
+                        }
+
+                        // 文字列ならJSONとして解析、オブジェクトならそのまま使用
                         const firebaseConfig = typeof configData === 'string' ? JSON.parse(configData) : configData;
+                        
                         const app = initializeApp(firebaseConfig);
                         auth = getAuth(app);
                         db = getFirestore(app);
 
-                        loadingMessage.value = "ログイン処理中...";
+                        loadingMessage.value = "セキュリティ接続を確立中...";
                         
-                        // 認証トークンの取得
-                        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                        // 認証トークンの確認
+                        let token = null;
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined') token = __initial_auth_token;
+                        } catch(e) {}
                         
                         if (token) {
                             await signInWithCustomToken(auth, token).catch(() => signInAnonymously(auth));
@@ -101,8 +102,8 @@
                             }
                         });
                     } catch (e) {
-                        console.error("Firebase Init Error:", e);
-                        loadingMessage.value = "接続エラーが発生しました。設定が正しいか確認してください。";
+                        console.error("Critical Init Error:", e);
+                        loadingMessage.value = "システムの起動中にエラーが発生しました。";
                     }
                 };
 
@@ -335,7 +336,7 @@
                     <button v-for="tab in ['ストリーム', 'メンバー']" :key="tab" @click="currentTab = tab" :class="['px-8 py-4 text-sm font-bold transition-all', currentTab === tab ? 'tab-active' : 'text-slate-500 hover:bg-slate-50']">{{ tab }}</button>
                 </div>
 
-                <!-- ストリーム（掲示板） -->
+                <!-- ストリーム -->
                 <div v-if="currentTab === 'ストリーム'" class="space-y-6">
                     <div :class="currentBoard.color + ' rounded-2xl p-8 text-white shadow-lg h-48 flex items-end relative overflow-hidden'">
                         <div class="relative z-10">
@@ -354,13 +355,11 @@
                             </div>
                         </div>
                         <div class="md:col-span-3 space-y-4">
-                            <!-- 投稿入力 -->
                             <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center space-x-4">
                                 <img :src="user.avatar" class="w-10 h-10 rounded-full bg-slate-100">
                                 <input v-model="newPostText" @keyup.enter="addPost" type="text" placeholder="チームに共有しましょう..." class="flex-grow bg-slate-50 border-none rounded-full px-5 py-2.5 text-sm outline-none">
                                 <button @click="addPost" class="text-slate-400 hover:text-slate-800 px-2 transition-transform active:scale-90"><i class="fas fa-paper-plane"></i></button>
                             </div>
-                            <!-- 投稿リスト -->
                             <div v-for="post in posts" :key="post.id" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 animate-fade-in">
                                 <div class="flex items-center justify-between mb-4">
                                     <div class="flex items-center space-x-3">
@@ -378,7 +377,7 @@
                     </div>
                 </div>
 
-                <!-- メンバーリスト -->
+                <!-- メンバー -->
                 <div v-if="currentTab === 'メンバー'" class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
                     <h2 class="text-2xl font-black mb-6">参加メンバー</h2>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -394,7 +393,7 @@
                 </div>
             </div>
 
-            <!-- 未ログイン画面 -->
+            <!-- 未ログイン -->
             <div v-if="!user && !loading" class="flex flex-col items-center justify-center py-32 text-center animate-fade-in">
                 <div class="w-24 h-24 noppo-gradient rounded-3xl flex items-center justify-center text-white text-4xl shadow-2xl mb-10 rotate-3"><i class="fas fa-layer-group"></i></div>
                 <h1 class="text-5xl font-black mb-4 tracking-tighter">NoppoBoard</h1>
@@ -403,7 +402,7 @@
             </div>
         </main>
 
-        <!-- モーダル（作成・参加） -->
+        <!-- モーダル -->
         <div v-if="modal.show" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div @click="modal.show = false" class="absolute inset-0 modal-overlay"></div>
             <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-10 animate-fade-in">
