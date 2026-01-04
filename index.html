@@ -32,6 +32,8 @@
             <div class="flex flex-col items-center">
                 <div class="w-12 h-12 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mb-4"></div>
                 <p class="text-slate-400 font-medium">{{ loadingMessage }}</p>
+                <!-- タイムアウト用ボタン（万が一止まった場合） -->
+                <button v-if="showRetry" @click="retryInit" class="mt-6 text-xs text-slate-500 underline">再試行する</button>
             </div>
         </div>
 
@@ -180,6 +182,7 @@
                 const user = ref(null);
                 const loading = ref(true);
                 const loadingMessage = ref('読み込み中...');
+                const showRetry = ref(false);
                 const view = ref('home');
                 const currentTab = ref('ストリーム');
                 const boards = ref([]);
@@ -196,27 +199,40 @@
                 const initApp = async () => {
                     loadingMessage.value = 'Firebase を準備中...';
                     
-                    // Firebase Configの取得を待機
-                    const getConfig = () => {
-                        if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
+                    // Canvas環境からの設定取得をより安全に
+                    const fetchConfig = () => {
+                        try {
+                            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                                return JSON.parse(__firebase_config);
+                            }
+                        } catch (e) { console.error("Config Parse Error", e); }
                         return null;
                     };
 
-                    const config = getConfig();
+                    let config = fetchConfig();
+                    let retryCount = 0;
+
+                    // 最大5回(5秒)設定の読み込みを待機
+                    while (!config && retryCount < 5) {
+                        await new Promise(r => setTimeout(r, 1000));
+                        config = fetchConfig();
+                        retryCount++;
+                    }
+
                     if (!config) {
-                        // 設定がまだない場合は1秒待って再試行（Canvasの起動ラグ対策）
-                        setTimeout(initApp, 1000);
+                        loadingMessage.value = 'Firebase設定が見つかりません。環境を確認してください。';
+                        showRetry.value = true;
                         return;
                     }
 
-                    // Firebase初期化
+                    // Firebase初期化 (既存のアプリがあれば再利用)
                     if (!firebase.apps.length) {
                         firebase.initializeApp(config);
                     }
                     db = firebase.firestore();
                     auth = firebase.auth();
 
-                    loadingMessage.value = '認証情報を確認中...';
+                    loadingMessage.value = 'Noppo Auth 認証中...';
                     await handleAuth();
                 };
 
@@ -225,7 +241,7 @@
                     const ticket = params.get('ticket');
                     
                     try {
-                        // 匿名ログイン
+                        // 匿名ログイン or カスタムトークン
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
@@ -266,6 +282,9 @@
                     boardsRef.onSnapshot(snapshot => {
                         const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         boards.value = all.filter(b => (b.members || []).includes(user.value.userId) || b.owner === user.value.userId);
+                        loading.value = false;
+                    }, err => {
+                        console.error("Firestore Error:", err);
                         loading.value = false;
                     });
                 };
@@ -323,14 +342,19 @@
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(currentBoard.value.id).collection('posts').doc(id).delete();
                 };
 
+                const retryInit = () => {
+                    showRetry.value = false;
+                    initApp();
+                };
+
                 onMounted(initApp);
 
                 return {
-                    user, loading, loadingMessage, view, currentTab, boards, currentBoard, posts, newPostText, modal,
+                    user, loading, loadingMessage, showRetry, view, currentTab, boards, currentBoard, posts, newPostText, modal,
                     goHome: () => { view.value = 'home'; currentBoard.value = null; },
                     goToLogin: () => { window.location.href = `${AUTH_WORKER_URL}?redirect=${encodeURIComponent(window.location.href)}`; },
                     logout: () => { window.location.href = `${AUTH_WORKER_URL}/logout?redirect=${encodeURIComponent(window.location.href)}`; },
-                    enterBoard, addPost, deletePost,
+                    enterBoard, addPost, deletePost, retryInit,
                     openModal: (t) => modal.value = { show: true, type: t, code: '', name: '', description: '' },
                     handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); modal.value.show = false; },
                     formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '...',
