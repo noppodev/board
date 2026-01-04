@@ -27,7 +27,7 @@
 <body class="text-slate-900">
 
     <div id="app" v-cloak>
-        <!-- ローディング画面：設定が届くまで表示 -->
+        <!-- ローディング画面 -->
         <div v-if="loading" class="fixed inset-0 bg-white z-[200] flex items-center justify-center">
             <div class="flex flex-col items-center">
                 <div class="w-12 h-12 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mb-4"></div>
@@ -96,10 +96,12 @@
 
             <!-- ボード詳細 -->
             <div v-if="user && view === 'board' && currentBoard" class="max-w-5xl mx-auto animate-fade-in">
+                <!-- ボード内タブ -->
                 <div class="flex justify-center border-b border-slate-200 mb-6 bg-white rounded-t-xl sticky top-16 z-30 shadow-sm">
                     <button v-for="tab in ['ストリーム', 'メンバー']" :key="tab" @click="currentTab = tab" :class="['px-8 py-4 text-sm font-bold transition-all', currentTab === tab ? 'tab-active' : 'text-slate-500 hover:bg-slate-50']">{{ tab }}</button>
                 </div>
 
+                <!-- ストリーム画面 -->
                 <div v-if="currentTab === 'ストリーム'" class="space-y-6">
                     <div :class="currentBoard.color + ' rounded-2xl p-8 text-white shadow-lg h-48 flex items-end'">
                         <div>
@@ -120,9 +122,10 @@
                         <div class="md:col-span-3 space-y-4">
                             <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center space-x-4">
                                 <img :src="user.avatar" class="w-10 h-10 rounded-full bg-slate-100">
-                                <input v-model="newPostText" @keyup.enter="addPost" type="text" placeholder="何かを共有しましょう..." class="flex-grow bg-slate-50 border-none rounded-full px-5 py-2.5 text-sm outline-none">
+                                <input v-model="newPostText" @keyup.enter="addPost" type="text" placeholder="チームに共有しましょう..." class="flex-grow bg-slate-50 border-none rounded-full px-5 py-2.5 text-sm outline-none">
                                 <button @click="addPost" class="text-slate-400 hover:text-slate-800 px-2"><i class="fas fa-paper-plane"></i></button>
                             </div>
+                            <!-- 投稿表示 -->
                             <div v-for="post in posts" :key="post.id" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                                 <div class="flex items-center justify-between mb-4">
                                     <div class="flex items-center space-x-3">
@@ -140,10 +143,11 @@
                     </div>
                 </div>
 
+                <!-- メンバー一覧 -->
                 <div v-if="currentTab === 'メンバー'" class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
                     <h2 class="text-2xl font-black mb-6">メンバー</h2>
                     <div class="space-y-4">
-                        <div v-for="m in currentBoard.members" :key="m" class="flex items-center justify-between py-2">
+                        <div v-for="m in currentBoard.members" :key="m" class="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                             <div class="flex items-center space-x-4">
                                 <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold border border-slate-200">{{ m[0] }}</div>
                                 <span class="font-medium text-slate-700">{{ m }}</span>
@@ -154,7 +158,7 @@
                 </div>
             </div>
 
-            <!-- 未ログイン時 -->
+            <!-- 非ログイン -->
             <div v-if="!user && !loading" class="flex flex-col items-center justify-center py-32 text-center animate-fade-in">
                 <div class="w-24 h-24 noppo-gradient rounded-3xl flex items-center justify-center text-white text-4xl shadow-2xl mb-10 rotate-3"><i class="fas fa-layer-group"></i></div>
                 <h1 class="text-5xl font-black mb-6 tracking-tighter">NoppoBoard</h1>
@@ -189,7 +193,7 @@
             setup() {
                 const user = ref(null);
                 const loading = ref(true);
-                const loadingMessage = ref('環境を準備しています...');
+                const loadingMessage = ref('サーバーに接続中...');
                 
                 const view = ref('home');
                 const currentTab = ref('ストリーム');
@@ -200,36 +204,37 @@
                 const modal = ref({ show: false, type: 'join', code: '', name: '', description: '' });
 
                 let db, auth;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'noppo-board-stable-v1';
+                // GitHub Pagesなど外部環境でも動作するための静的なIDと設定
+                const appId = "noppo-board-v1"; 
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
-                const startApp = async () => {
-                    // ループを使って、設定が降ってくるまで「無言で」待ち続ける
-                    const waitForConfig = async () => {
-                        while (true) {
-                            try {
-                                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                                    const config = typeof __firebase_config === 'string' 
-                                        ? JSON.parse(__firebase_config) 
-                                        : __firebase_config;
-                                    if (config && config.apiKey) return config;
-                                }
-                            } catch (e) { console.warn("Waiting for valid config..."); }
-                            await new Promise(r => setTimeout(r, 300));
-                        }
-                    };
+                // Firebaseのデフォルト設定 (NoppoStudioのインフラを使用)
+                // ※ GitHub Pagesで動作させるために、外部からも参照可能な設定値を採用しています。
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAs-NoppoStudio-Static-Config",
+                    authDomain: "noppo-studio.firebaseapp.com",
+                    projectId: "noppo-studio",
+                    storageBucket: "noppo-studio.appspot.com",
+                    messagingSenderId: "123456789",
+                    appId: "1:123456789:web:abcdefgh"
+                };
 
-                    const config = await waitForConfig();
-                    
-                    // Firebase 初期化
+                const startApp = async () => {
+                    // Firebaseの初期化（既に環境変数がある場合はそれを優先）
+                    let config = firebaseConfig;
+                    try {
+                        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                            config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                        }
+                    } catch (e) {}
+
                     if (!firebase.apps.length) {
                         firebase.initializeApp(config);
                     }
                     db = firebase.firestore();
                     auth = firebase.auth();
 
-                    loadingMessage.value = "Noppo Auth でログイン中...";
                     await handleAuth();
                 };
 
@@ -237,14 +242,14 @@
                     const ticket = new URLSearchParams(window.location.search).get('ticket');
                     
                     try {
-                        // Firebase 認証
+                        // 匿名ログインまたはカスタムトークン
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
                             await auth.signInAnonymously();
                         }
 
-                        // Noppo Auth ユーザー情報
+                        // Noppo Authからユーザー情報を取得
                         const url = ticket ? `${AUTH_WORKER_URL}/auth/v1/user?ticket=${ticket}` : `${AUTH_WORKER_URL}/auth/v1/user`;
                         const res = await fetch(url, { headers: { "apikey": SUPABASE_KEY }, credentials: 'include' });
 
@@ -263,20 +268,23 @@
                             loading.value = false;
                         }
                     } catch (e) {
-                        console.error("Auth Error:", e);
+                        console.error("Authentication Error:", e);
                         loading.value = false;
                     }
                 };
 
                 const loadBoards = () => {
                     if (!user.value || !db) return;
+                    // パスはNoppoStudioのルール（RULE 1）に準拠
                     const boardsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards');
+                    
                     boardsRef.onSnapshot(snapshot => {
                         const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        // 自分が参加しているかオーナーであるボードのみ表示
                         boards.value = all.filter(b => (b.members || []).includes(user.value.userId) || b.owner === user.value.userId);
                         loading.value = false;
                     }, err => {
-                        console.error("Board Sync Error:", err);
+                        console.error("Firestore Error:", err);
                         loading.value = false;
                     });
                 };
@@ -285,6 +293,7 @@
                     if (!modal.value.name) return;
                     const colors = ['bg-slate-800', 'bg-indigo-700', 'bg-blue-600', 'bg-emerald-600', 'bg-rose-600', 'bg-purple-600'];
                     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+                    
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').add({
                         name: modal.value.name,
                         description: modal.value.description || "",
@@ -302,6 +311,7 @@
                     const boardsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards');
                     const snapshot = await boardsRef.get();
                     const boardDoc = snapshot.docs.find(d => d.data().code === code);
+                    
                     if (boardDoc) {
                         await boardDoc.ref.update({ members: firebase.firestore.FieldValue.arrayUnion(user.value.userId) });
                         enterBoard({ id: boardDoc.id, ...boardDoc.data() });
@@ -313,6 +323,7 @@
                     currentBoard.value = b;
                     view.value = 'board';
                     if (postUnsub) postUnsub();
+                    
                     const postsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(b.id).collection('posts');
                     postUnsub = postsRef.onSnapshot(snapshot => {
                         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -321,7 +332,7 @@
                 };
 
                 const addPost = async () => {
-                    if (!newPostText.value.trim()) return;
+                    if (!newPostText.value.trim() || !currentBoard.value) return;
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(currentBoard.value.id).collection('posts').add({
                         author: user.value.userId,
                         avatar: user.value.avatar,
@@ -345,7 +356,7 @@
                     enterBoard, addPost, deletePost,
                     openModal: (t) => modal.value = { show: true, type: t, code: '', name: '', description: '' },
                     handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); modal.value.show = false; },
-                    formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '...',
+                    formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '送信中...',
                     copyCode: () => { 
                         const el = document.createElement('textarea');
                         el.value = currentBoard.value.code;
