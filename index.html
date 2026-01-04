@@ -32,8 +32,7 @@
             <div class="flex flex-col items-center">
                 <div class="w-12 h-12 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mb-4"></div>
                 <p class="text-slate-400 font-medium">{{ loadingMessage }}</p>
-                <!-- タイムアウト用ボタン（万が一止まった場合） -->
-                <button v-if="showRetry" @click="retryInit" class="mt-6 text-xs text-slate-500 underline">再試行する</button>
+                <p v-if="error" class="mt-4 text-rose-500 text-xs px-10 text-center">{{ errorMessage }}</p>
             </div>
         </div>
 
@@ -181,8 +180,10 @@
             setup() {
                 const user = ref(null);
                 const loading = ref(true);
-                const loadingMessage = ref('読み込み中...');
-                const showRetry = ref(false);
+                const loadingMessage = ref('接続を待機中...');
+                const error = ref(false);
+                const errorMessage = ref('');
+                
                 const view = ref('home');
                 const currentTab = ref('ストリーム');
                 const boards = ref([]);
@@ -192,68 +193,58 @@
                 const modal = ref({ show: false, type: 'join', code: '', name: '', description: '' });
 
                 let db, auth;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'noppo-board-stable';
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'noppo-board-v1';
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
-                const initApp = async () => {
-                    loadingMessage.value = 'Firebase を準備中...';
-                    
-                    // Canvas環境からの設定取得をより安全に
-                    const fetchConfig = () => {
-                        try {
-                            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                                return JSON.parse(__firebase_config);
-                            }
-                        } catch (e) { console.error("Config Parse Error", e); }
+                const initFirebase = async () => {
+                    // ループを使って、設定が降ってくるまでしつこくチェックする
+                    const checkConfig = () => {
+                        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                            try { return JSON.parse(__firebase_config); } catch(e) { return null; }
+                        }
                         return null;
                     };
 
-                    let config = fetchConfig();
-                    let retryCount = 0;
+                    let config = checkConfig();
+                    let attempts = 0;
 
-                    // 最大5回(5秒)設定の読み込みを待機
-                    while (!config && retryCount < 5) {
-                        await new Promise(r => setTimeout(r, 1000));
-                        config = fetchConfig();
-                        retryCount++;
+                    while (!config && attempts < 20) { // 最大10秒待機
+                        await new Promise(r => setTimeout(r, 500));
+                        config = checkConfig();
+                        attempts++;
                     }
 
                     if (!config) {
-                        loadingMessage.value = 'Firebase設定が見つかりません。環境を確認してください。';
-                        showRetry.value = true;
+                        error.value = true;
+                        errorMessage.value = "Firebaseの設定が届きませんでした。ページをリロードしてみてください。";
                         return;
                     }
 
-                    // Firebase初期化 (既存のアプリがあれば再利用)
                     if (!firebase.apps.length) {
                         firebase.initializeApp(config);
                     }
                     db = firebase.firestore();
                     auth = firebase.auth();
-
-                    loadingMessage.value = 'Noppo Auth 認証中...';
+                    
+                    loadingMessage.value = "Noppo Auth を確認中...";
                     await handleAuth();
                 };
 
                 const handleAuth = async () => {
-                    const params = new URLSearchParams(window.location.search);
-                    const ticket = params.get('ticket');
+                    const ticket = new URLSearchParams(window.location.search).get('ticket');
                     
                     try {
-                        // 匿名ログイン or カスタムトークン
+                        // 1. Firebase Auth (匿名 or カスタム)
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
                             await auth.signInAnonymously();
                         }
 
-                        // Noppo Auth チケット交換
+                        // 2. Noppo Auth
                         const url = ticket ? `${AUTH_WORKER_URL}/auth/v1/user?ticket=${ticket}` : `${AUTH_WORKER_URL}/auth/v1/user`;
-                        const res = await fetch(url, { 
-                            headers: { "apikey": SUPABASE_KEY },
-                            credentials: 'include' 
-                        });
+                        const res = await fetch(url, { headers: { "apikey": SUPABASE_KEY }, credentials: 'include' });
 
                         if (res.ok) {
                             const data = await res.json();
@@ -263,28 +254,28 @@
                                 uid: auth.currentUser.uid
                             };
                             if (ticket) {
-                                const cleanUrl = window.location.origin + window.location.pathname;
-                                window.history.replaceState({}, document.title, cleanUrl);
+                                window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
                             }
                             loadBoards();
                         } else {
                             loading.value = false;
                         }
                     } catch (e) {
-                        console.error("Auth Error", e);
+                        console.error("Auth Fail", e);
                         loading.value = false;
                     }
                 };
 
                 const loadBoards = () => {
                     if (!user.value || !db) return;
+                    // パスルールを厳守
                     const boardsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards');
                     boardsRef.onSnapshot(snapshot => {
                         const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         boards.value = all.filter(b => (b.members || []).includes(user.value.userId) || b.owner === user.value.userId);
                         loading.value = false;
                     }, err => {
-                        console.error("Firestore Error:", err);
+                        console.error("Board Load Error", err);
                         loading.value = false;
                     });
                 };
@@ -342,19 +333,14 @@
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('boards').doc(currentBoard.value.id).collection('posts').doc(id).delete();
                 };
 
-                const retryInit = () => {
-                    showRetry.value = false;
-                    initApp();
-                };
-
-                onMounted(initApp);
+                onMounted(initFirebase);
 
                 return {
-                    user, loading, loadingMessage, showRetry, view, currentTab, boards, currentBoard, posts, newPostText, modal,
+                    user, loading, loadingMessage, error, errorMessage, view, currentTab, boards, currentBoard, posts, newPostText, modal,
                     goHome: () => { view.value = 'home'; currentBoard.value = null; },
                     goToLogin: () => { window.location.href = `${AUTH_WORKER_URL}?redirect=${encodeURIComponent(window.location.href)}`; },
                     logout: () => { window.location.href = `${AUTH_WORKER_URL}/logout?redirect=${encodeURIComponent(window.location.href)}`; },
-                    enterBoard, addPost, deletePost, retryInit,
+                    enterBoard, addPost, deletePost,
                     openModal: (t) => modal.value = { show: true, type: t, code: '', name: '', description: '' },
                     handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); modal.value.show = false; },
                     formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '...',
