@@ -6,7 +6,7 @@
     <title>NoppoBoard | チームで繋がる掲示板</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- Firebase SDK (Lite / Compat) -->
+    <!-- Firebase SDK (Firestoreのみ使用) -->
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore-compat.js"></script>
     <style>
@@ -92,7 +92,7 @@
                 </div>
             </div>
 
-            <!-- 詳細画面 -->
+            <!-- ボード詳細画面 -->
             <div v-if="user && view === 'board' && currentBoard" class="max-w-5xl mx-auto animate-fade-in">
                 <div class="flex justify-center border-b border-slate-200 mb-6 bg-white rounded-t-xl sticky top-16 z-30 shadow-sm">
                     <button v-for="tab in ['ストリーム', 'メンバー']" :key="tab" @click="currentTab = tab" :class="['px-8 py-4 text-sm font-bold transition-all', currentTab === tab ? 'tab-active' : 'text-slate-500 hover:bg-slate-50']">{{ tab }}</button>
@@ -195,16 +195,16 @@
                 const modal = ref({ show: false, type: 'join', code: '', name: '', description: '' });
 
                 let db;
-                // NoppoStudioのインフラを使用
-                const appId = "noppo-board-v1-stable"; 
+                const appId = "noppo-board-stable-v1"; 
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
                 const startApp = async () => {
-                    // Firebase Auth SDKを使わずに初期化 (Firestoreのみ使用)
+                    // Firebase Auth SDKを読み込まないことでAPIキーチェック自体をスキップ
                     let config = {
                         projectId: "noppo-studio",
-                        appId: "1:12345:web:dummy"
+                        // APIキーが必要と言われないよう、最低限の構成で初期化
+                        apiKey: "AIza-Noppo-Studio-Placeholder"
                     };
 
                     try {
@@ -222,7 +222,8 @@
                 };
 
                 const handleNoppoAuth = async () => {
-                    const ticket = new URLSearchParams(window.location.search).get('ticket');
+                    const params = new URLSearchParams(window.location.search);
+                    const ticket = params.get('ticket');
                     
                     try {
                         const url = ticket ? `${AUTH_WORKER_URL}/auth/v1/user?ticket=${ticket}` : `${AUTH_WORKER_URL}/auth/v1/user`;
@@ -230,19 +231,22 @@
 
                         if (res.ok) {
                             const data = await res.json();
+                            // ユーザー情報のマッピング (導入マニュアル準拠)
                             user.value = {
                                 userId: data.user_metadata.display_name,
                                 avatar: data.user_metadata.avatar_url
                             };
+                            
                             if (ticket) {
-                                window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+                                const cleanUrl = window.location.origin + window.location.pathname;
+                                window.history.replaceState({}, document.title, cleanUrl);
                             }
                             loadBoards();
                         } else {
                             loading.value = false;
                         }
                     } catch (e) {
-                        console.error("Auth process error:", e);
+                        console.error("Noppo Auth Fetch Error:", e);
                         loading.value = false;
                     }
                 };
@@ -256,7 +260,7 @@
                         boards.value = all.filter(b => (b.members || []).includes(user.value.userId) || b.owner === user.value.userId);
                         loading.value = false;
                     }, err => {
-                        console.error("Firestore Error (Probably Permissions):", err);
+                        console.error("Firestore Error:", err);
                         loading.value = false;
                     });
                 };
