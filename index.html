@@ -6,12 +6,28 @@
     <title>NoppoBoard | チームで繋がる掲示板</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- Firebase SDK (Modular版) -->
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
+        .noppo-gradient { background: linear-gradient(135deg, #0f172a 0%, #334155 100%); }
+        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-bottom: 1px solid #e2e8f0; }
+        .class-card { transition: all 0.2s; border: 1px solid #e2e8f0; }
+        .class-card:hover { box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        [v-cloak] { display: none; }
+        .tab-active { color: #0f172a; border-bottom: 3px solid #0f172a; }
+        .modal-overlay { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+
+    <!-- Firebase & Vue SDK (ESモジュール版) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-        import { createApp, ref, onMounted } from "https://unpkg.com/vue@3/dist/vue.global.prod.js";
+        // VueのESM用URLに変更
+        import { createApp, ref, onMounted } from "https://unpkg.com/vue@3/dist/vue.esm-browser.js";
 
         createApp({
             setup() {
@@ -32,13 +48,11 @@
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
                 const initFirebase = async () => {
-                    // 環境から提供される設定を使用
                     const firebaseConfig = JSON.parse(__firebase_config);
                     const app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
 
-                    // 1. まずFirebase認証を通す (RULE 3)
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
@@ -49,7 +63,6 @@
                         console.error("Firebase Auth Error:", e);
                     }
 
-                    // 2. 認証状態を監視
                     onAuthStateChanged(auth, (firebaseUser) => {
                         if (firebaseUser) {
                             handleNoppoAuth();
@@ -93,8 +106,6 @@
 
                 const loadBoards = () => {
                     if (!user.value) return;
-                    
-                    // RULE 2: フィルタリングはJS側で行う
                     onSnapshot(getPublicCollection('boards'), (snapshot) => {
                         const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
                         boards.value = all.filter(b => 
@@ -133,7 +144,6 @@
                     const code = modal.value.code.toUpperCase().trim();
                     if (!code || !user.value) return;
                     
-                    // シンプルなクエリで取得してJSでフィルタ (RULE 2)
                     onSnapshot(getPublicCollection('boards'), async (snapshot) => {
                         const target = snapshot.docs.find(d => d.data().code === code);
                         if (target) {
@@ -184,13 +194,14 @@
 
                 onMounted(initFirebase);
 
-                window.vueApp = {
+                // 全てをリターンしてテンプレートからアクセス可能にする
+                return {
                     user, loading, loadingMessage, view, currentTab, boards, currentBoard, posts, newPostText, modal,
                     goHome: () => { view.value = 'home'; currentBoard.value = null; },
                     goToLogin: () => { window.location.href = `${AUTH_WORKER_URL}?redirect=${encodeURIComponent(window.location.href)}`; },
                     logout: () => { window.location.href = `${AUTH_WORKER_URL}/logout?redirect=${encodeURIComponent(window.location.href)}`; },
                     enterBoard, addPost, deletePost,
-                    openModal: (t) => modal.value = { show: true, type: t, code: '', name: '', description: '' },
+                    openModal: (t) => { modal.value = { show: true, type: t, code: '', name: '', description: '' }; },
                     handleAction: () => { if (modal.value.type === 'create') createBoard(); else joinBoard(); },
                     formatDate: (ts) => ts ? new Date(ts.toDate()).toLocaleString() : '送信中...',
                     copyCode: () => {
@@ -220,7 +231,7 @@
         <nav class="sticky top-0 z-50 glass-nav px-4 h-16 flex items-center">
             <div class="max-w-screen-2xl mx-auto w-full flex justify-between items-center">
                 <div class="flex items-center space-x-4">
-                    <div class="flex items-center space-x-2 cursor-pointer" @click="$window.vueApp.goHome()">
+                    <div class="flex items-center space-x-2 cursor-pointer" @click="goHome">
                         <div class="w-8 h-8 noppo-gradient rounded-lg flex items-center justify-center text-white text-xs shadow-lg">
                             <i class="fas fa-layer-group"></i>
                         </div>
@@ -234,10 +245,10 @@
                             <i class="fas fa-plus text-lg"></i>
                         </button>
                         <div class="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-2xl py-2 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-50">
-                            <button @click="$window.vueApp.openModal('join')" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 flex items-center">
+                            <button @click="openModal('join')" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 flex items-center">
                                 <i class="fas fa-sign-in-alt mr-3 text-slate-400 w-5"></i>ボードに参加
                             </button>
-                            <button @click="$window.vueApp.openModal('create')" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 flex items-center border-t border-slate-100">
+                            <button @click="openModal('create')" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 flex items-center border-t border-slate-100">
                                 <i class="fas fa-plus-circle mr-3 text-slate-400 w-5"></i>ボードを作成
                             </button>
                         </div>
@@ -245,21 +256,21 @@
                     <div class="flex items-center space-x-2 border-l border-slate-200 pl-4">
                         <img :src="user.avatar" class="w-8 h-8 rounded-full shadow-sm bg-slate-100" @error="e => e.target.src='https://ui-avatars.com/api/?name='+user.userId">
                         <span class="text-sm font-bold text-slate-600 hidden md:inline">{{ user.userId }}</span>
-                        <button @click="$window.vueApp.logout()" class="text-slate-400 hover:text-red-500 transition px-2">
+                        <button @click="logout" class="text-slate-400 hover:text-red-500 transition px-2">
                             <i class="fas fa-sign-out-alt"></i>
                         </button>
                     </div>
                 </div>
                 <div v-else-if="!loading">
-                    <button @click="$window.vueApp.goToLogin()" class="noppo-gradient text-white px-5 py-2 rounded-lg text-sm font-bold">ログイン</button>
+                    <button @click="goToLogin" class="noppo-gradient text-white px-5 py-2 rounded-lg text-sm font-bold">ログイン</button>
                 </div>
             </div>
         </nav>
 
         <main class="max-w-screen-2xl mx-auto p-4 md:p-8">
-            <!-- ボード一覧 -->
+            <!-- ホーム：ボード一覧 -->
             <div v-if="user && view === 'home'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
-                <div v-for="b in boards" :key="b.id" @click="$window.vueApp.enterBoard(b)" class="class-card bg-white rounded-xl overflow-hidden cursor-pointer flex flex-col h-72">
+                <div v-for="b in boards" :key="b.id" @click="enterBoard(b)" class="class-card bg-white rounded-xl overflow-hidden cursor-pointer flex flex-col h-72">
                     <div :class="b.color + ' p-5 text-white h-28 relative'">
                         <h2 class="text-xl font-bold truncate pr-10">{{ b.name }}</h2>
                         <p class="text-xs opacity-90 mt-1">{{ b.description }}</p>
@@ -297,15 +308,15 @@
                                 <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">コード</h3>
                                 <div class="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
                                     <span class="text-xl font-mono font-bold text-slate-700">{{ currentBoard.code }}</span>
-                                    <button @click="$window.vueApp.copyCode()" class="text-slate-400 hover:text-slate-800"><i class="far fa-copy"></i></button>
+                                    <button @click="copyCode" class="text-slate-400 hover:text-slate-800"><i class="far fa-copy"></i></button>
                                 </div>
                             </div>
                         </div>
                         <div class="md:col-span-3 space-y-4">
                             <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center space-x-4">
                                 <img :src="user.avatar" class="w-10 h-10 rounded-full bg-slate-100">
-                                <input v-model="newPostText" @keyup.enter="$window.vueApp.addPost()" type="text" placeholder="チームに共有しましょう..." class="flex-grow bg-slate-50 border-none rounded-full px-5 py-2.5 text-sm outline-none">
-                                <button @click="$window.vueApp.addPost()" class="text-slate-400 hover:text-slate-800 px-2 transition-transform active:scale-90"><i class="fas fa-paper-plane"></i></button>
+                                <input v-model="newPostText" @keyup.enter="addPost" type="text" placeholder="チームに共有しましょう..." class="flex-grow bg-slate-50 border-none rounded-full px-5 py-2.5 text-sm outline-none">
+                                <button @click="addPost" class="text-slate-400 hover:text-slate-800 px-2 transition-transform active:scale-90"><i class="fas fa-paper-plane"></i></button>
                             </div>
                             <div v-for="post in posts" :key="post.id" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 animate-fade-in">
                                 <div class="flex items-center justify-between mb-4">
@@ -313,10 +324,10 @@
                                         <img :src="post.avatar" class="w-10 h-10 rounded-full bg-slate-100" @error="e => e.target.src='https://ui-avatars.com/api/?name='+post.author">
                                         <div>
                                             <h4 class="font-bold text-sm">{{ post.author }}</h4>
-                                            <p class="text-[10px] text-slate-400">{{ $window.vueApp.formatDate(post.createdAt) }}</p>
+                                            <p class="text-[10px] text-slate-400">{{ formatDate(post.createdAt) }}</p>
                                         </div>
                                     </div>
-                                    <button v-if="post.author === user.userId" @click="$window.vueApp.deletePost(post.id)" class="text-slate-200 hover:text-rose-500"><i class="fas fa-trash-alt text-xs"></i></button>
+                                    <button v-if="post.author === user.userId" @click="deletePost(post.id)" class="text-slate-200 hover:text-rose-500"><i class="fas fa-trash-alt text-xs"></i></button>
                                 </div>
                                 <p class="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{{ post.content }}</p>
                             </div>
@@ -339,11 +350,11 @@
                 </div>
             </div>
 
-            <!-- 未ログイン -->
+            <!-- 未ログイン時 -->
             <div v-if="!user && !loading" class="flex flex-col items-center justify-center py-32 text-center animate-fade-in">
                 <div class="w-24 h-24 noppo-gradient rounded-3xl flex items-center justify-center text-white text-4xl shadow-2xl mb-10 rotate-3"><i class="fas fa-layer-group"></i></div>
                 <h1 class="text-5xl font-black mb-4 tracking-tighter">NoppoBoard</h1>
-                <button @click="$window.vueApp.goToLogin()" class="noppo-gradient text-white px-12 py-5 rounded-2xl font-bold shadow-xl hover:shadow-2xl transition-all block w-full md:w-auto">Noppo Auth でログイン</button>
+                <button @click="goToLogin" class="noppo-gradient text-white px-12 py-5 rounded-2xl font-bold shadow-xl hover:shadow-2xl transition-all block w-full md:w-auto">Noppo Auth でログイン</button>
             </div>
         </main>
 
@@ -354,12 +365,12 @@
                 <h3 class="text-2xl font-black mb-8">{{ modal.type === 'join' ? 'ボードに参加' : '新しいボード' }}</h3>
                 <div v-if="modal.type === 'join'" class="space-y-6">
                     <input v-model="modal.code" type="text" placeholder="コードを入力" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-5 text-center font-mono text-3xl uppercase tracking-widest outline-none">
-                    <button @click="$window.vueApp.handleAction()" :disabled="!modal.code" class="w-full noppo-gradient text-white py-5 rounded-2xl font-bold shadow-lg disabled:opacity-50">ボードを見つける</button>
+                    <button @click="handleAction" :disabled="!modal.code" class="w-full noppo-gradient text-white py-5 rounded-2xl font-bold shadow-lg disabled:opacity-50">ボードを見つける</button>
                 </div>
                 <div v-if="modal.type === 'create'" class="space-y-5">
                     <input v-model="modal.name" type="text" placeholder="ボードの名前" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 font-bold outline-none">
                     <textarea v-model="modal.description" placeholder="ボードの説明（省略可）" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 outline-none h-24 resize-none text-sm"></textarea>
-                    <button @click="$window.vueApp.handleAction()" :disabled="!modal.name" class="w-full noppo-gradient text-white py-5 rounded-2xl font-bold shadow-lg disabled:opacity-50">ボードを作成</button>
+                    <button @click="handleAction" :disabled="!modal.name" class="w-full noppo-gradient text-white py-5 rounded-2xl font-bold shadow-lg disabled:opacity-50">ボードを作成</button>
                 </div>
             </div>
         </div>
