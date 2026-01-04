@@ -42,57 +42,42 @@
                 const modal = ref({ show: false, type: 'join', code: '', name: '', description: '' });
 
                 let db, auth;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : "noppo-board-v1";
+                // GitHub Pagesなどの外部環境では、手動でIDを指定するか、URLから取得するようにします
+                const appId = "noppo-board-v1"; 
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
-                // Firebase設定を徹底的に待機して取得する関数
-                const fetchConfigWithRetry = async (maxRetries = 60) => {
-                    for (let i = 0; i < maxRetries; i++) {
-                        // 1. window直下を確認
-                        if (window.__firebase_config) return window.__firebase_config;
-                        // 2. グローバル変数を確認
-                        try {
-                            if (typeof __firebase_config !== 'undefined') return __firebase_config;
-                        } catch(e) {}
-                        
-                        // 0.5秒待って再試行
-                        loadingMessage.value = `ネットワーク設定を待機中... (${i + 1})`;
-                        await new Promise(r => setTimeout(r, 500));
-                    }
-                    return null;
+                // GitHub Pages用にFirebaseの設定を直接記述します
+                // Firebaseコンソール > プロジェクト設定 > マイアプリ > SDK設定 の値をここに貼り付けてください
+                // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+                const firebaseConfig = {
+                 apiKey: "AIzaSyB2HcI-TwH88QDADp-Z5cUFRCsaVO2VMw0",
+                 authDomain: "portal-1767266387985.firebaseapp.com",
+                  projectId: "portal-1767266387985",
+                  storageBucket: "portal-1767266387985.firebasestorage.app",
+                 messagingSenderId: "931194072772",
+                 appId: "1:931194072772:web:05d7e925662ddd0f1d6391",
+                 measurementId: "G-4P3HJPWXHH"
                 };
 
                 const initFirebase = async () => {
                     try {
-                        const configData = await fetchConfigWithRetry();
+                        loadingMessage.value = "Firebaseに接続中...";
                         
-                        if (!configData) {
-                            console.error("Firebase config is missing from environment.");
-                            loadingMessage.value = "設定データの取得に失敗しました。プレビューをリロードしてみてください。";
+                        // 設定がデフォルトのまま（貼り付け忘れ）の場合は警告を出す
+                        if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                            loadingMessage.value = "Firebaseの設定（firebaseConfig）が正しく入力されていません。";
                             return;
                         }
 
-                        // 文字列ならJSONとして解析、オブジェクトならそのまま使用
-                        const firebaseConfig = typeof configData === 'string' ? JSON.parse(configData) : configData;
-                        
                         const app = initializeApp(firebaseConfig);
                         auth = getAuth(app);
                         db = getFirestore(app);
 
                         loadingMessage.value = "セキュリティ接続を確立中...";
                         
-                        // 認証トークンの確認
-                        let token = null;
-                        try {
-                            if (typeof __initial_auth_token !== 'undefined') token = __initial_auth_token;
-                        } catch(e) {}
-                        
-                        if (token) {
-                            await signInWithCustomToken(auth, token).catch(() => signInAnonymously(auth));
-                        } else {
-                            await signInAnonymously(auth);
-                        }
+                        // 匿名ログイン
+                        await signInAnonymously(auth);
 
                         onAuthStateChanged(auth, (firebaseUser) => {
                             if (firebaseUser) {
@@ -103,7 +88,7 @@
                         });
                     } catch (e) {
                         console.error("Critical Init Error:", e);
-                        loadingMessage.value = "システムの起動中にエラーが発生しました。";
+                        loadingMessage.value = "システムの起動中にエラーが発生しました。設定値を確認してください。";
                     }
                 };
 
@@ -139,6 +124,7 @@
                 };
 
                 const getPublicCollection = (name) => {
+                    // GitHub Pagesの場合、appIdを固定値で管理します
                     return collection(db, 'artifacts', appId, 'public', 'data', name);
                 };
 
