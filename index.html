@@ -46,31 +46,40 @@
                 const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
                 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
 
-                // 設定が注入されるのを待つ関数
+                // 設定が注入されるのをより粘り強く待つ
                 const waitForConfig = () => {
                     return new Promise((resolve) => {
-                        if (typeof __firebase_config !== 'undefined') {
-                            resolve(__firebase_config);
-                        } else {
-                            const interval = setInterval(() => {
-                                if (typeof __firebase_config !== 'undefined') {
-                                    clearInterval(interval);
-                                    resolve(__firebase_config);
-                                }
-                            }, 100);
-                            // 5秒待っても来ない場合はタイムアウト
-                            setTimeout(() => { clearInterval(interval); resolve(null); }, 5000);
-                        }
+                        const check = () => {
+                            const config = window.__firebase_config;
+                            if (typeof config !== 'undefined' && config) {
+                                resolve(config);
+                                return true;
+                            }
+                            return false;
+                        };
+
+                        if (check()) return;
+
+                        const interval = setInterval(() => {
+                            if (check()) clearInterval(interval);
+                        }, 50);
+
+                        // 10秒待っても来ない場合はエラー
+                        setTimeout(() => {
+                            clearInterval(interval);
+                            if (!check()) resolve(null);
+                        }, 10000);
                     });
                 };
 
                 const initFirebase = async () => {
+                    loadingMessage.value = "ネットワーク設定を読み込み中...";
                     try {
                         const configStr = await waitForConfig();
                         
                         if (!configStr) {
                             console.error("Firebase config is missing.");
-                            loadingMessage.value = "設定データの取得に失敗しました。ページを更新してください。";
+                            loadingMessage.value = "設定データの取得に時間がかかりすぎています。ページを再読み込み（F5）してください。";
                             return;
                         }
 
@@ -79,6 +88,7 @@
                         auth = getAuth(app);
                         db = getFirestore(app);
 
+                        loadingMessage.value = "ログイン処理中...";
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
                         } else {
@@ -92,11 +102,12 @@
                         });
                     } catch (e) {
                         console.error("Initialization Error:", e);
-                        loadingMessage.value = "初期化エラーが発生しました。";
+                        loadingMessage.value = "予期せぬエラーが発生しました。";
                     }
                 };
 
                 const handleNoppoAuth = async () => {
+                    loadingMessage.value = "Noppoアカウントを確認中...";
                     const params = new URLSearchParams(window.location.search);
                     const ticket = params.get('ticket');
                     
