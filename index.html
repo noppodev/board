@@ -8,94 +8,112 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
         
         :root {
             --noppo-main: #0f172a;
-            --noppo-accent: #3b82f6;
-            --noppo-bg: #f8fafc;
+            --noppo-accent: #2563eb;
+            --noppo-bg: #fdfdfd;
+            --noppo-card-border: #f1f5f9;
         }
 
         body { 
-            font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif; 
+            font-family: 'Inter', 'Noto Sans JP', sans-serif; 
             background-color: var(--noppo-bg); 
-            color: #1e293b;
-            letter-spacing: -0.01em;
+            color: #334155;
+            letter-spacing: -0.011em;
         }
 
-        .noppo-gradient { background: linear-gradient(135deg, #0f172a 0%, #334155 100%); }
-        .glass-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid #e2e8f0; }
+        .noppo-gradient { 
+            background: #0f172a; 
+        }
+
+        .glass-nav { 
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(16px); 
+            border-bottom: 1px solid #f1f5f9; 
+        }
         
-        /* Classroom風のカードデザイン */
         .class-card {
             background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            transition: all 0.2s ease;
         }
         .class-card:hover {
-            box-shadow: 0 12px 24px -8px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
-            border-color: #cbd5e1;
+            border-color: #e2e8f0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            transform: translateY(-1px);
         }
 
-        /* タブのアニメーション */
         .tab-btn {
             position: relative;
-            padding: 1rem 0.5rem;
+            padding: 0.75rem 0.25rem;
             font-size: 0.875rem;
             font-weight: 600;
-            color: #64748b;
+            color: #94a3b8;
             transition: all 0.2s;
         }
         .tab-btn.active {
-            color: var(--noppo-accent);
+            color: #0f172a;
         }
         .tab-btn.active::after {
             content: '';
             position: absolute;
-            bottom: 0;
+            bottom: -1px;
             left: 0;
             right: 0;
-            height: 3px;
-            background: var(--noppo-accent);
-            border-radius: 3px 3px 0 0;
+            height: 2px;
+            background: #0f172a;
         }
 
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
         [v-cloak] { display: none; }
         
-        /* カスタム入力 */
         .n-input {
-            border: 1px solid #e2e8f0;
-            background: #ffffff;
+            border: 1.5px solid #f1f5f9;
+            background: #f8fafc;
             transition: all 0.2s;
         }
         .n-input:focus {
-            border-color: var(--noppo-accent);
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            background: #ffffff;
+            border-color: #0f172a;
             outline: none;
         }
+
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, serverTimestamp, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
         import { createApp, ref, onMounted, computed } from "https://unpkg.com/vue@3/dist/vue.esm-browser.prod.js";
 
-        const appId = "noppo-board-v1"; 
+        // 環境変数からの取得
+                // Import the functions you need from the SDKs you need
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+        
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
-            apiKey: "AIzaSyB2HcI-TwH88QDADp-Z5cUFRCsaVO2VMw0",
-            authDomain: "portal-1767266387985.firebaseapp.com",
-            projectId: "portal-1767266387985",
-            storageBucket: "portal-1767266387985.firebasestorage.app",
-            messagingSenderId: "931194072772",
-            appId: "1:931194072772:web:05d7e925662ddd0f1d6391",
-            measurementId: "G-4P3HJPWXHH"
+          apiKey: "AIzaSyB2HcI-TwH88QDADp-Z5cUFRCsaVO2VMw0",
+          authDomain: "portal-1767266387985.firebaseapp.com",
+          projectId: "portal-1767266387985",
+          storageBucket: "portal-1767266387985.firebasestorage.app",
+          messagingSenderId: "931194072772",
+          appId: "1:931194072772:web:05d7e925662ddd0f1d6391",
+          measurementId: "G-4P3HJPWXHH"
         };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
 
         const AUTH_WORKER_URL = "https://noppo-auth.noppo5319.workers.dev";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXZhc3JkeGd1cWtpaWdjeGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0MTk5ODcsImV4cCI6MjA4Mjk5NTk4N30.CVq3lyRbxek7Ejs4tP5sN9-0JNEXSLtCsC2Pj-skFFQ";
@@ -105,7 +123,7 @@
                 const user = ref(null);
                 const loading = ref(true);
                 const view = ref('home');
-                const activeTab = ref('stream'); // stream, tasks, materials
+                const activeTab = ref('stream');
                 const boards = ref([]);
                 const currentBoard = ref(null);
                 const posts = ref([]);
@@ -117,18 +135,23 @@
                 const getPublicPath = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
 
                 const initApp = async () => {
-                    try {
-                        const app = initializeApp(firebaseConfig);
-                        auth = getAuth(app);
-                        db = getFirestore(app);
-                        await signInAnonymously(auth);
-                        onAuthStateChanged(auth, async (fbUser) => {
-                            if (fbUser) await handleAuthSync();
-                        });
-                    } catch (e) {
-                        console.error(e);
-                        loading.value = false;
-                    }
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+
+                    // Auth Init
+                    const initAuth = async () => {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    };
+                    await initAuth();
+
+                    onAuthStateChanged(auth, async (fbUser) => {
+                        if (fbUser) await handleAuthSync();
+                    });
                 };
 
                 const handleAuthSync = async () => {
@@ -158,11 +181,11 @@
                     onSnapshot(getPublicPath('boards'), (snap) => {
                         boards.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
                             .filter(b => (b.members || []).includes(user.value.userId) || b.owner === user.value.userId);
-                    });
+                    }, (err) => console.error(err));
                 };
 
                 const createBoard = async () => {
-                    if (!modal.value.name) return;
+                    if (!modal.value.name || !user.value) return;
                     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
                     await addDoc(getPublicPath('boards'), {
                         name: modal.value.name,
@@ -178,6 +201,8 @@
 
                 const joinBoard = async () => {
                     const inputCode = modal.value.code.toUpperCase().trim();
+                    if (!inputCode || !user.value) return;
+                    
                     onSnapshot(getPublicPath('boards'), (snap) => {
                         const target = snap.docs.find(d => d.data().code === inputCode);
                         if (target) {
@@ -198,11 +223,11 @@
                     onSnapshot(postsCol, (snap) => {
                         posts.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
                             .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                    });
+                    }, (err) => console.error(err));
                 };
 
                 const addPost = async () => {
-                    if (!newPostText.value.trim()) return;
+                    if (!newPostText.value.trim() || !user.value) return;
                     const postsCol = collection(db, 'artifacts', appId, 'public', 'data', 'boards', currentBoard.value.id, 'posts');
                     await addDoc(postsCol, {
                         author: user.value.userId,
@@ -216,6 +241,7 @@
                 };
 
                 const addReaction = async (postId, emoji) => {
+                    if (!user.value) return;
                     const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'boards', currentBoard.value.id, 'posts', postId);
                     await updateDoc(postRef, {
                         [`reactions.${emoji}`]: increment(1)
@@ -224,9 +250,7 @@
 
                 const filteredPosts = computed(() => {
                     if (activeTab.value === 'stream') return posts.value;
-                    if (activeTab.value === 'tasks') return posts.value.filter(p => p.type === 'tasks');
-                    if (activeTab.value === 'materials') return posts.value.filter(p => p.type === 'materials');
-                    return posts.value;
+                    return posts.value.filter(p => p.type === activeTab.value);
                 });
 
                 onMounted(() => initApp());
@@ -253,80 +277,74 @@
         <!-- ローディング -->
         <div v-if="loading" class="fixed inset-0 bg-white z-[100] flex items-center justify-center">
             <div class="flex flex-col items-center gap-4">
-                <div class="w-10 h-10 border-4 border-slate-100 border-t-slate-900 rounded-full animate-spin"></div>
-                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Connecting to NoppoBoard</p>
+                <div class="w-8 h-8 border-2 border-slate-100 border-t-slate-900 rounded-full animate-spin"></div>
             </div>
         </div>
 
         <!-- ナビ -->
-        <nav class="sticky top-0 z-50 glass-nav h-16">
-            <div class="max-w-6xl mx-auto h-full px-6 flex items-center justify-between">
-                <div @click="goHome" class="flex items-center gap-3 cursor-pointer">
-                    <div class="w-9 h-9 noppo-gradient rounded-xl flex items-center justify-center text-white text-sm shadow-lg shadow-slate-200">
+        <nav class="sticky top-0 z-50 glass-nav h-14">
+            <div class="max-w-5xl mx-auto h-full px-4 flex items-center justify-between">
+                <div @click="goHome" class="flex items-center gap-2.5 cursor-pointer">
+                    <div class="w-7 h-7 bg-slate-900 rounded-lg flex items-center justify-center text-white text-[10px]">
                         <i class="fas fa-layer-group"></i>
                     </div>
-                    <span class="font-bold text-xl tracking-tighter">NoppoBoard</span>
+                    <span class="font-bold text-lg tracking-tight">NoppoBoard</span>
                 </div>
                 
-                <div v-if="user" class="flex items-center gap-6">
-                    <button @click="openModal('create')" class="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition">
-                        <i class="fas fa-plus-circle text-lg"></i>作成
-                    </button>
-                    <div class="h-8 w-px bg-slate-200 hidden sm:block"></div>
-                    <div class="flex items-center gap-3 bg-slate-50 pl-1 pr-3 py-1 rounded-full border border-slate-100">
-                        <img :src="user.avatar" class="w-7 h-7 rounded-full shadow-sm">
-                        <span class="text-[10px] font-bold text-slate-600">{{ user.userId }}</span>
-                        <button @click="logout" class="text-slate-300 hover:text-red-500 ml-1 transition"><i class="fas fa-power-off text-xs"></i></button>
+                <div v-if="user" class="flex items-center gap-4">
+                    <div class="hidden sm:flex items-center gap-4 mr-2">
+                        <button @click="openModal('create')" class="text-[11px] font-bold text-slate-500 hover:text-slate-900 transition flex items-center gap-1.5">
+                            <i class="fas fa-plus"></i> 作成
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 py-1.5 px-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <img :src="user.avatar" class="w-5 h-5 rounded-full object-cover">
+                        <span class="text-[10px] font-bold text-slate-600 pr-1">{{ user.userId }}</span>
+                        <button @click="logout" class="text-slate-300 hover:text-slate-900 ml-1 transition"><i class="fas fa-power-off text-[9px]"></i></button>
                     </div>
                 </div>
-                <button v-else-if="!loading" @click="login" class="noppo-gradient text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-slate-200">ログイン</button>
+                <button v-else-if="!loading" @click="login" class="bg-slate-900 text-white px-4 py-1.5 rounded-lg text-xs font-bold">ログイン</button>
             </div>
         </nav>
 
-        <main class="max-w-6xl mx-auto p-6 lg:p-12">
-            <!-- 未ログイン画面 -->
-            <div v-if="!user && !loading" class="py-24 flex flex-col items-center text-center animate-fade-in">
-                <div class="w-24 h-24 noppo-gradient rounded-[32px] flex items-center justify-center text-white text-4xl shadow-2xl mb-10 rotate-6"><i class="fas fa-layer-group"></i></div>
-                <h1 class="text-4xl font-black mb-6 tracking-tight">チームの意思疎通を、<br>もっと美しく。</h1>
-                <p class="text-slate-400 mb-12 max-w-sm text-sm leading-relaxed">NoppoBoardはPortalプロジェクトのための<br>次世代チーム掲示板です。</p>
-                <button @click="login" class="noppo-gradient text-white px-12 py-5 rounded-2xl font-bold shadow-2xl shadow-slate-300 hover:scale-105 transition">Noppoアカウントで開始</button>
+        <main class="max-w-5xl mx-auto p-4 md:p-8">
+            <!-- 未ログイン -->
+            <div v-if="!user && !loading" class="py-20 flex flex-col items-center text-center animate-fade-in">
+                <div class="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white text-2xl mb-8 rotate-3"><i class="fas fa-layer-group"></i></div>
+                <h1 class="text-3xl font-bold mb-4 tracking-tight">チームの意思疎通を、<br>もっと美しく。</h1>
+                <p class="text-slate-400 mb-10 max-w-xs text-sm leading-relaxed">NoppoBoardはPortalプロジェクトのための<br>次世代チーム掲示板です。</p>
+                <button @click="login" class="bg-slate-900 text-white px-8 py-4 rounded-xl font-bold hover:opacity-90 transition">Noppoアカウントで開始</button>
             </div>
 
             <!-- ボード一覧 -->
             <div v-if="user && view === 'home'" class="animate-fade-in">
-                <div class="flex items-center justify-between mb-10">
+                <div class="flex items-center justify-between mb-8">
                     <div>
-                        <h2 class="text-2xl font-bold tracking-tight">参加中のボード</h2>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Your Active Workspaces</p>
+                        <h2 class="text-xl font-bold tracking-tight">ワークスペース</h2>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Your Active Boards</p>
                     </div>
-                    <div class="flex gap-3">
-                        <button @click="openModal('join')" class="px-5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-50 transition">コードで参加</button>
-                        <button @click="openModal('create')" class="noppo-gradient text-white px-5 py-2.5 rounded-xl text-xs font-bold">新規作成</button>
+                    <div class="flex gap-2">
+                        <button @click="openModal('join')" class="px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-50 transition">コードで参加</button>
+                        <button @click="openModal('create')" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold">新規作成</button>
                     </div>
                 </div>
 
-                <div v-if="boards.length === 0" class="py-32 text-center border-2 border-dashed border-slate-200 rounded-[32px]">
-                    <i class="fas fa-folder-open text-slate-200 text-5xl mb-4"></i>
-                    <p class="text-slate-400 font-medium">参加しているボードはありません</p>
+                <div v-if="boards.length === 0" class="py-24 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+                    <p class="text-slate-300 font-medium text-sm">参加しているボードはありません</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <div v-for="b in boards" @click="enterBoard(b)" class="class-card group cursor-pointer overflow-hidden">
-                        <div :class="[b.color, 'h-28 p-6 text-white relative overflow-hidden']">
-                            <div class="relative z-10 h-full flex flex-col justify-end">
-                                <h3 class="font-bold text-xl leading-tight line-clamp-1 group-hover:underline">{{ b.name }}</h3>
-                                <p class="text-[10px] opacity-70 font-mono tracking-widest mt-1 uppercase">{{ b.code }}</p>
-                            </div>
-                            <div class="absolute -right-4 -top-4 opacity-10 text-7xl transform rotate-12 group-hover:rotate-0 transition-transform">
-                                <i class="fas fa-users"></i>
-                            </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="b in boards" @click="enterBoard(b)" class="class-card group cursor-pointer overflow-hidden flex flex-col">
+                        <div :class="[b.color, 'h-24 p-5 text-white flex flex-col justify-end']">
+                            <h3 class="font-bold text-base leading-tight group-hover:underline">{{ b.name }}</h3>
+                            <p class="text-[9px] opacity-60 font-mono tracking-wider mt-1 uppercase">{{ b.code }}</p>
                         </div>
-                        <div class="p-6">
-                            <p class="text-sm text-slate-500 line-clamp-2 h-10 mb-6">{{ b.description || '説明なし' }}</p>
-                            <div class="flex items-center justify-between pt-4 border-t border-slate-50">
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ (b.members || []).length }} メンバー</span>
-                                <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-slate-900 group-hover:text-white transition-all">
-                                    <i class="fas fa-chevron-right text-[10px]"></i>
+                        <div class="p-5">
+                            <p class="text-[13px] text-slate-500 line-clamp-2 h-10 mb-4">{{ b.description || 'No description provided.' }}</p>
+                            <div class="flex items-center justify-between pt-3 border-t border-slate-50">
+                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ (b.members || []).length }} Members</span>
+                                <div class="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-slate-900 group-hover:text-white transition-all">
+                                    <i class="fas fa-arrow-right text-[8px]"></i>
                                 </div>
                             </div>
                         </div>
@@ -334,97 +352,83 @@
                 </div>
             </div>
 
-            <!-- ボード詳細 (Classroom風) -->
-            <div v-if="user && view === 'board' && currentBoard" class="animate-fade-in max-w-5xl mx-auto">
-                <!-- ボードヘッダー -->
-                <div :class="[currentBoard.color, 'rounded-[24px] p-8 lg:p-12 text-white shadow-2xl shadow-slate-200 mb-8 relative overflow-hidden']">
-                    <div class="relative z-10">
-                        <button @click="goHome" class="text-white/60 hover:text-white mb-6 text-[10px] font-bold uppercase tracking-widest transition flex items-center gap-2">
-                            <i class="fas fa-arrow-left"></i> ボード一覧へ
-                        </button>
-                        <h2 class="text-4xl font-black mb-3 tracking-tight">{{ currentBoard.name }}</h2>
-                        <p class="text-white/70 text-sm max-w-2xl leading-relaxed">{{ currentBoard.description }}</p>
+            <!-- ボード詳細 -->
+            <div v-if="user && view === 'board' && currentBoard" class="animate-fade-in">
+                <header class="mb-6">
+                    <button @click="goHome" class="text-slate-400 hover:text-slate-900 mb-4 text-[10px] font-bold uppercase tracking-widest transition flex items-center gap-1.5">
+                        <i class="fas fa-chevron-left"></i> Home
+                    </button>
+                    <div :class="[currentBoard.color, 'rounded-xl p-8 text-white relative overflow-hidden']">
+                        <div class="relative z-10">
+                            <h2 class="text-2xl font-bold mb-2 tracking-tight">{{ currentBoard.name }}</h2>
+                            <p class="text-white/60 text-sm max-w-xl leading-relaxed">{{ currentBoard.description }}</p>
+                        </div>
+                        <i class="fas fa-th-large absolute right-8 top-1/2 -translate-y-1/2 text-white/10 text-6xl"></i>
                     </div>
-                    <div class="absolute right-12 top-12 text-white/10 text-9xl transform rotate-6 select-none pointer-events-none">
-                        <i class="fas fa-chalkboard-teacher"></i>
-                    </div>
-                </div>
+                </header>
 
-                <!-- タブメニュー -->
-                <div class="flex gap-8 border-b border-slate-200 mb-8 overflow-x-auto whitespace-nowrap scrollbar-hide">
+                <!-- タブ -->
+                <div class="flex gap-6 border-b border-slate-100 mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     <button @click="activeTab = 'stream'" :class="{active: activeTab === 'stream'}" class="tab-btn">ストリーム</button>
                     <button @click="activeTab = 'tasks'" :class="{active: activeTab === 'tasks'}" class="tab-btn">課題</button>
                     <button @click="activeTab = 'materials'" :class="{active: activeTab === 'materials'}" class="tab-btn">資料</button>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    <!-- 左サイドバー -->
-                    <div class="lg:col-span-1 space-y-6">
-                        <div class="class-card p-6">
-                            <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">クラスコード</h4>
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <!-- 統計 -->
+                    <div class="lg:col-span-1 space-y-4">
+                        <div class="class-card p-4">
+                            <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Board Code</h4>
                             <div class="flex items-center justify-between">
-                                <span class="text-2xl font-black text-slate-900 font-mono tracking-tighter">{{ currentBoard.code }}</span>
-                                <button class="text-slate-300 hover:text-slate-600"><i class="fas fa-copy"></i></button>
+                                <span class="text-xl font-bold text-slate-900 font-mono tracking-tight">{{ currentBoard.code }}</span>
+                                <button class="text-slate-300 hover:text-slate-600 text-xs"><i class="fas fa-copy"></i></button>
                             </div>
-                        </div>
-                        <div class="class-card p-6">
-                            <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">ステータス</h4>
-                            <p class="text-xs font-bold text-slate-600">{{ (currentBoard.members || []).length }} 名が参加中</p>
                         </div>
                     </div>
 
-                    <!-- メインコンテンツ -->
                     <div class="lg:col-span-3 space-y-6">
-                        <!-- 投稿ボックス -->
-                        <div class="class-card p-6">
-                            <div class="flex gap-4">
-                                <img :src="user.avatar" class="w-10 h-10 rounded-full border border-slate-100">
+                        <!-- 投稿 -->
+                        <div class="class-card p-5">
+                            <div class="flex gap-3">
+                                <img :src="user.avatar" class="w-8 h-8 rounded-full">
                                 <div class="flex-1">
                                     <textarea v-model="newPostText" 
-                                              :placeholder="activeTab === 'stream' ? 'クラスにお知らせする...' : activeTab === 'tasks' ? '新しい課題の概要を入力...' : '資料について共有する...'" 
-                                              class="w-full text-sm border-none focus:ring-0 resize-none py-2 min-h-[80px]" rows="3"></textarea>
-                                    <div class="flex justify-between items-center pt-4 border-t border-slate-50">
-                                        <div class="flex gap-2">
-                                            <button class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-50 transition"><i class="fas fa-link text-xs"></i></button>
-                                            <button class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-50 transition"><i class="fas fa-file-alt text-xs"></i></button>
-                                        </div>
-                                        <button @click="addPost" :disabled="!newPostText.trim()" class="noppo-gradient text-white px-8 py-2.5 rounded-xl text-xs font-bold disabled:opacity-30 shadow-lg shadow-slate-200 transition">投稿</button>
+                                              :placeholder="activeTab === 'stream' ? '全体へお知らせ...' : '詳細を入力...'" 
+                                              class="w-full text-[13px] border-none focus:ring-0 resize-none py-1 min-h-[60px]" rows="2"></textarea>
+                                    <div class="flex justify-end items-center pt-3 border-t border-slate-50 mt-2">
+                                        <button @click="addPost" :disabled="!newPostText.trim()" class="bg-slate-900 text-white px-5 py-2 rounded-lg text-[11px] font-bold disabled:opacity-20 transition">投稿</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- 投稿リスト -->
-                        <div class="space-y-6">
-                            <div v-for="post in filteredPosts" :key="post.id" class="class-card p-6 animate-fade-in">
-                                <div class="flex items-center justify-between mb-5">
-                                    <div class="flex items-center gap-3">
-                                        <img :src="post.avatar" class="w-9 h-9 rounded-full shadow-sm">
+                        <div class="space-y-4">
+                            <div v-for="post in filteredPosts" :key="post.id" class="class-card p-5 animate-fade-in">
+                                <div class="flex items-start justify-between mb-4">
+                                    <div class="flex items-center gap-2.5">
+                                        <img :src="post.avatar" class="w-7 h-7 rounded-full">
                                         <div>
-                                            <h4 class="text-sm font-bold text-slate-800">{{ post.author }}</h4>
-                                            <p class="text-[10px] text-slate-400 font-medium">
-                                                {{ post.createdAt ? new Date(post.createdAt.toDate()).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '送信中...' }}
+                                            <h4 class="text-[12px] font-bold text-slate-800">{{ post.author }}</h4>
+                                            <p class="text-[9px] text-slate-400">
+                                                {{ post.createdAt ? new Date(post.createdAt.toDate()).toLocaleString('ja-JP') : '...' }}
                                             </p>
                                         </div>
                                     </div>
-                                    <div v-if="post.type && post.type !== 'announcement'" class="px-3 py-1 bg-slate-50 rounded-full border border-slate-100 flex items-center gap-2">
-                                        <i :class="post.type === 'tasks' ? 'fas fa-clipboard-list' : 'fas fa-book'" class="text-[10px] text-slate-400"></i>
-                                        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{{ post.type === 'tasks' ? '課題' : '資料' }}</span>
-                                    </div>
+                                    <span v-if="post.type && post.type !== 'announcement'" class="text-[8px] font-bold px-2 py-0.5 bg-slate-100 rounded uppercase tracking-wider text-slate-500">
+                                        {{ post.type === 'tasks' ? 'Task' : 'Material' }}
+                                    </span>
                                 </div>
-                                
-                                <div class="pl-12">
-                                    <p class="text-[15px] text-slate-700 whitespace-pre-wrap leading-relaxed mb-6">{{ post.content }}</p>
-                                    
-                                    <!-- リアクション -->
-                                    <div class="flex flex-wrap gap-2 items-center">
+                                <div class="pl-9">
+                                    <p class="text-[14px] text-slate-600 whitespace-pre-wrap leading-relaxed mb-4">{{ post.content }}</p>
+                                    <div class="flex flex-wrap gap-2">
                                         <button v-for="(count, emoji) in post.reactions" :key="emoji" @click="addReaction(post.id, emoji)" 
-                                                class="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs flex items-center gap-2 hover:bg-white hover:border-slate-300 transition">
+                                                class="px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[11px] flex items-center gap-1.5 hover:bg-white transition">
                                             <span>{{ emoji }}</span>
                                             <span class="font-bold text-slate-600">{{ count }}</span>
                                         </button>
-                                        <div class="flex gap-2 ml-2">
-                                            <button v-for="e in ['👍','👏','💡']" :key="e" @click="addReaction(post.id, e)" class="w-8 h-8 flex items-center justify-center hover:scale-110 transition grayscale hover:grayscale-0 opacity-40 hover:opacity-100 text-lg">
+                                        <div class="flex gap-1 ml-1">
+                                            <button v-for="e in ['👍','💡','✅']" :key="e" @click="addReaction(post.id, e)" class="w-6 h-6 flex items-center justify-center opacity-30 hover:opacity-100 transition text-sm">
                                                 {{ e }}
                                             </button>
                                         </div>
@@ -432,9 +436,8 @@
                                 </div>
                             </div>
 
-                            <div v-if="filteredPosts.length === 0" class="py-20 text-center text-slate-300">
-                                <i class="fas fa-ghost text-4xl mb-4 opacity-20"></i>
-                                <p class="text-xs font-bold uppercase tracking-[0.2em]">まだ投稿がありません</p>
+                            <div v-if="filteredPosts.length === 0" class="py-12 text-center text-slate-200">
+                                <p class="text-[10px] font-bold uppercase tracking-widest">No activity yet</p>
                             </div>
                         </div>
                     </div>
@@ -443,38 +446,31 @@
         </main>
 
         <!-- モーダル -->
-        <div v-if="modal.show" class="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <div @click="modal.show = false" class="absolute inset-0 bg-slate-900/40 backdrop-blur-md"></div>
-            <div class="bg-white rounded-[32px] w-full max-w-sm relative p-10 shadow-2xl animate-fade-in">
-                <div class="mb-8">
-                    <h3 class="text-2xl font-black tracking-tight mb-2">{{ modal.type === 'create' ? '新しいボード' : 'コードで参加' }}</h3>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ modal.type === 'create' ? 'Start a new team' : 'Join existing space' }}</p>
+        <div v-if="modal.show" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div @click="modal.show = false" class="absolute inset-0 bg-slate-900/10 backdrop-blur-sm"></div>
+            <div class="bg-white rounded-2xl w-full max-w-[340px] relative p-8 shadow-2xl border border-slate-100 animate-fade-in">
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold tracking-tight mb-1">{{ modal.type === 'create' ? '新規ボード作成' : 'コードで参加' }}</h3>
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Set up your workspace</p>
                 </div>
 
-                <div v-if="modal.type === 'create'" class="space-y-5">
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-bold text-slate-400 ml-1 uppercase tracking-widest">ボード名</label>
-                        <input v-model="modal.name" type="text" placeholder="数学 Aクラス" class="n-input w-full px-5 py-4 rounded-2xl text-sm">
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-bold text-slate-400 ml-1 uppercase tracking-widest">説明（オプション）</label>
-                        <textarea v-model="modal.description" placeholder="このボードの目的..." class="n-input w-full px-5 py-4 rounded-2xl text-sm h-28 resize-none"></textarea>
-                    </div>
+                <div v-if="modal.type === 'create'" class="space-y-4">
+                    <input v-model="modal.name" type="text" placeholder="ボードの名前" class="n-input w-full px-4 py-3 rounded-xl text-sm">
+                    <textarea v-model="modal.description" placeholder="説明（任意）" class="n-input w-full px-4 py-3 rounded-xl text-sm h-24 resize-none"></textarea>
                 </div>
                 
-                <div v-else class="space-y-5 text-center">
-                    <p class="text-xs text-slate-500 mb-4">共有された6文字のコードを入力してください。</p>
-                    <input v-model="modal.code" type="text" placeholder="ABCDEF" maxlength="6" class="n-input w-full px-5 py-6 rounded-2xl text-center font-mono text-3xl uppercase tracking-[0.5em] focus:ring-4">
+                <div v-else class="space-y-4">
+                    <input v-model="modal.code" type="text" placeholder="ABCDEF" maxlength="6" class="n-input w-full px-4 py-4 rounded-xl text-center font-mono text-xl uppercase tracking-widest">
                 </div>
 
-                <button @click="handleModalAction" class="w-full noppo-gradient text-white py-5 rounded-2xl font-bold mt-10 shadow-xl shadow-slate-200 hover:scale-[1.02] transition">
-                    {{ modal.type === 'create' ? 'ボードを作成' : '参加する' }}
+                <button @click="handleModalAction" class="w-full bg-slate-900 text-white py-4 rounded-xl font-bold mt-6 shadow-lg hover:opacity-90 transition">
+                    {{ modal.type === 'create' ? '作成' : '参加' }}
                 </button>
             </div>
         </div>
 
-        <footer class="p-16 text-center">
-            <p class="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-300">NoppoBoard Pro / Developed by NoppoStudio</p>
+        <footer class="p-12 text-center">
+            <p class="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-200">NoppoStudio | NoppoBoard</p>
         </footer>
     </div>
 </body>
